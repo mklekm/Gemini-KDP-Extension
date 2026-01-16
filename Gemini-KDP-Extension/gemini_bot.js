@@ -242,7 +242,7 @@
 
     function countValidImages() {
         return Array.from(document.querySelectorAll('img'))
-            .filter(i => i.naturalWidth > 200 && (i.src.startsWith('https://') || i.src.startsWith('data:')))
+            .filter(i => i.naturalWidth > 200 && (i.src.startsWith('https://') || i.src.startsWith('data:') || i.src.startsWith('blob:')))
             .length;
     }
 
@@ -254,8 +254,9 @@
 
         await new Promise(r => {
             const i = setInterval(() => {
-                const stopBtn = document.querySelector('button[aria-label="Stop responding"]');
-                const progress = document.querySelector('.mat-mdc-progress-bar');
+                // Expanded selectors for robustness
+                const stopBtn = document.querySelector('button[aria-label*="Stop"], button[data-test-id*="stop-generating"]');
+                const progress = document.querySelector('.mat-mdc-progress-bar, [role="progressbar"]');
                 if (!stopBtn && !progress) { clearInterval(i); r(); }
             }, 1000);
         });
@@ -281,10 +282,25 @@
         const d = await waitForEl('div[contenteditable="true"], textarea');
         if (!d) { console.error("Input box not found!"); return; }
         d.focus();
-        document.execCommand('insertText', false, t);
+
+        // Try deprecated but reliable execCommand
+        let success = document.execCommand('insertText', false, t);
+
+        // Fallback for modern apps
+        if (!success) {
+             const inputEvent = new Event('input', { bubbles: true, composed: true });
+             if (d.tagName === 'TEXTAREA') {
+                 d.value = t;
+             } else {
+                 d.innerText = t;
+             }
+             d.dispatchEvent(inputEvent);
+        }
+
         d.dispatchEvent(new Event('input', { bubbles: true }));
         await delay(1500);
-        const b = document.querySelector('button[aria-label*="Send"]');
+        // Improved selector for send button
+        const b = document.querySelector('button[aria-label*="Send"], button[class*="send-button"]');
         if (b) b.click();
         else d.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     }
@@ -328,9 +344,9 @@
     }
 
     function constructPrompt(j, a) {
-        return `Role: Professional Illustrator. Task: Plan ${j.settings.pageCount} generic scene descriptions for a "${j.title}" book. Plot: ${j.description}. 
-        OUTPUT FORMAT: STRICT JSON Array. Example: [{"page":1,"image_prompt":"...","story_text":"..."}]. 
-        Style Constraint: ${j.settings.bookType.includes('coloring') ? 'Black and white line art only, simple, no shading' : 'Full color, 3D render'}. 
+        return `Role: Professional Illustrator. Task: Plan ${j.settings.pageCount} generic scene descriptions for a "${j.title}" book. Plot: ${j.description}.
+        OUTPUT FORMAT: STRICT JSON Array. Example: [{"page":1,"image_prompt":"...","story_text":"..."}].
+        Style Constraint: ${j.settings.bookType.includes('coloring') ? 'Black and white line art only, simple, no shading' : 'Full color, 3D render'}.
         Format: ${a}. Negative Keywords: ${j.negativeKeywords}.`;
     }
 
@@ -372,11 +388,21 @@
 
     function parseJSON(s) {
         if (!s) return null;
+
+        // Attempt 1: Extract JSON from code blocks (improved)
+        const codeBlockMatch = s.match(/```(?:json)?\s*(\[\s*\{[\s\S]*?\}\s*\])\s*```/i);
+        if (codeBlockMatch && codeBlockMatch[1]) {
+             try { return JSON.parse(codeBlockMatch[1]); } catch(e) {}
+        }
+
+        // Attempt 2: Classic regex (cleaning)
         let clean = s.replace(/```json/gi, '').replace(/```/g, '').trim();
         const match = clean.match(/\[\s*\{[\s\S]*?\}\s*\]/);
         if (match) {
             try { return JSON.parse(match[0]); } catch (e) { console.warn("Regex JSON parse failed"); }
         }
+
+        // Attempt 3: Substring hunting
         const start = s.indexOf('[');
         const end = s.lastIndexOf(']') + 1;
         if (start !== -1 && end > start) {

@@ -1,16 +1,34 @@
 // background.js - V12 Service Worker (Strict Locking & Image Proxy)
 
-let currentJobTabId = null;
+// Helper to access session storage (falls back to local if session undefined)
+const getStorage = async (keys) => {
+    if (chrome.storage.session) {
+        return await chrome.storage.session.get(keys);
+    } else {
+        return await chrome.storage.local.get(keys);
+    }
+};
 
-chrome.runtime.onInstalled.addListener(() => {
+const setStorage = async (items) => {
+    if (chrome.storage.session) {
+        return await chrome.storage.session.set(items);
+    } else {
+        return await chrome.storage.local.set(items);
+    }
+};
+
+chrome.runtime.onInstalled.addListener(async () => {
     console.log("Gemini KDP Studio V12 Installed");
+    // Clear lock on install/update/reload
+    await setStorage({ currentJobTabId: null });
 });
 
 // Clean up lock if tab is closed
-chrome.tabs.onRemoved.addListener((tabId) => {
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+    const { currentJobTabId } = await getStorage(['currentJobTabId']);
     if (tabId === currentJobTabId) {
         console.log("Locked tab closed. Resetting lock.");
-        currentJobTabId = null;
+        await setStorage({ currentJobTabId: null });
     }
 });
 
@@ -35,40 +53,45 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     // 2. STRICT TAB LOCKING
     if (msg.action === 'VERIFY_TAB') {
-        // If no lock, the first requester CLAIMS it.
-        // In a perfect world, popup would set this, but content script is fine for this flow.
-        if (currentJobTabId === null) {
-            currentJobTabId = sender.tab.id;
-            console.log(`Tab ${currentJobTabId} claimed the lock.`);
-            sendResponse({ allowed: true });
-        } else if (currentJobTabId === sender.tab.id) {
-            // Same tab, allow.
-            sendResponse({ allowed: true });
-        } else {
-            // Different tab, DENY.
-            console.warn(`Tab ${sender.tab.id} denied. Lock held by ${currentJobTabId}.`);
-            sendResponse({ allowed: false });
-        }
-        return false;
+        (async () => {
+            const { currentJobTabId } = await getStorage(['currentJobTabId']);
+
+            // If no lock, the first requester CLAIMS it.
+            if (!currentJobTabId) {
+                await setStorage({ currentJobTabId: sender.tab.id });
+                console.log(`Tab ${sender.tab.id} claimed the lock.`);
+                sendResponse({ allowed: true });
+            } else if (currentJobTabId === sender.tab.id) {
+                // Same tab, allow.
+                sendResponse({ allowed: true });
+            } else {
+                // Different tab, DENY.
+                console.warn(`Tab ${sender.tab.id} denied. Lock held by ${currentJobTabId}.`);
+                sendResponse({ allowed: false });
+            }
+        })();
+        return true; // Async now!
     }
 
     // 3. STOP JOB SIGNAL
     if (msg.action === 'STOP_JOB') {
-        // Broadcast stop
-        chrome.tabs.query({}, (tabs) => {
-            tabs.forEach(t => chrome.tabs.sendMessage(t.id, { action: 'STOP_JOB' }));
-        });
+        (async () => {
+             // Broadcast stop
+            chrome.tabs.query({}, (tabs) => {
+                tabs.forEach(t => chrome.tabs.sendMessage(t.id, { action: 'STOP_JOB' }));
+            });
 
-        // Clear lock so new jobs can start
-        currentJobTabId = null;
-        console.log("Job stopped. Lock released.");
+            // Clear lock so new jobs can start
+            await setStorage({ currentJobTabId: null });
+            console.log("Job stopped. Lock released.");
 
-        // Update storage
-        chrome.storage.local.get(['activeJob'], (res) => {
-            if (res.activeJob) {
-                res.activeJob.status = 'paused';
-                chrome.storage.local.set({ activeJob: res.activeJob });
-            }
-        });
+            // Update storage
+            chrome.storage.local.get(['activeJob'], (res) => {
+                if (res.activeJob) {
+                    res.activeJob.status = 'paused';
+                    chrome.storage.local.set({ activeJob: res.activeJob });
+                }
+            });
+        })();
     }
 });

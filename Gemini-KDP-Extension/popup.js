@@ -178,8 +178,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- 4B. PDF EXPORT LOGIC ---
     async function exportProjectToPDF(proj) {
-        if (!window.jspdf) {
-            alert("jsPDF library not loaded! Check 'libs/jspdf.umd.min.js'");
+        if (!window.jspdf || !window.jspdf.jsPDF) {
+            alert("jsPDF library not loaded properly! Check 'libs/jspdf.umd.min.js'");
             return;
         }
         const { jsPDF } = window.jspdf;
@@ -191,71 +191,95 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (parts.length === 2) format = parts;
         }
 
-        const doc = new jsPDF({
-            orientation: 'portrait',
-            unit: 'in',
-            format: format
-        });
+        try {
+            const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'in',
+                format: format
+            });
 
-        const width = doc.internal.pageSize.getWidth();
-        const height = doc.internal.pageSize.getHeight();
+            const width = doc.internal.pageSize.getWidth();
+            const height = doc.internal.pageSize.getHeight();
 
-        // 1. Cover
-        if (proj.coverImage) {
-            doc.addImage(proj.coverImage, 'JPEG', 0, 0, width, height);
-        } else {
-            doc.text(proj.title, width / 2, height / 3, { align: 'center' });
-        }
-
-        // 2. Pages
-        proj.pages.forEach((pg, i) => {
-            if (i > 0 || proj.coverImage) doc.addPage();
-
-            if (pg.image) {
-                // Full Page Image Layout
-                doc.addImage(pg.image, 'JPEG', 0, 0, width, height);
+            // 1. Cover
+            if (proj.coverImage) {
+                doc.addImage(proj.coverImage, 'JPEG', 0, 0, width, height);
+            } else {
+                doc.text(proj.title, width / 2, height / 3, { align: 'center' });
             }
-        });
 
-        doc.save(`${proj.title.replace(/[^a-z0-9]/gi, '_')}_KDP.pdf`);
+            // 2. Pages
+            proj.pages.forEach((pg, i) => {
+                if (i > 0 || proj.coverImage) doc.addPage();
+
+                if (pg.image) {
+                    // Full Page Image Layout
+                    doc.addImage(pg.image, 'JPEG', 0, 0, width, height);
+                }
+            });
+
+            doc.save(`${proj.title.replace(/[^a-z0-9]/gi, '_')}_KDP.pdf`);
+        } catch (e) {
+            console.error(e);
+            alert("Error creating PDF: " + e.message);
+        }
     }
 
     // --- 5. AUTOMATION HANDLERS ---
 
     // A. Scrape
     els.btnScrape.addEventListener('click', async () => {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab.url.includes('amazon')) {
-            alert("Please be on an Amazon Product Page.");
-            return;
-        }
-
-        els.btnScrape.textContent = "⏳";
-
-        // Inject
-        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['amazon_scraper.js'] });
-
-        // Send Message
-        chrome.tabs.sendMessage(tab.id, { action: 'scrape_amazon' }, (res) => {
-            els.btnScrape.textContent = "🔍";
-            if (res && res.data) {
-                const d = res.data;
-                els.title.value = d.title;
-                els.plot.value = d.description;
-                // Save negatives silently
-                chrome.storage.local.set({ negativeKeywords: d.negativeKeywords });
-                // Flash success
-                els.btnScrape.style.background = '#dcfce7';
-                setTimeout(() => els.btnScrape.style.background = '', 1000);
-            } else {
-                alert("Scrape failed. Please check console.");
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab || !tab.url.includes('amazon')) {
+                alert("Please be on an Amazon Product Page.");
+                return;
             }
-        });
+
+            els.btnScrape.textContent = "⏳";
+
+            // Inject
+            await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['amazon_scraper.js'] });
+
+            // Send Message
+            chrome.tabs.sendMessage(tab.id, { action: 'scrape_amazon' }, (res) => {
+                els.btnScrape.textContent = "🔍";
+
+                if (chrome.runtime.lastError) {
+                    console.error("Scrape Error:", chrome.runtime.lastError);
+                    alert("Communication error. Please refresh the Amazon page and try again.");
+                    return;
+                }
+
+                if (res && res.data) {
+                    const d = res.data;
+                    els.title.value = d.title;
+                    els.plot.value = d.description;
+                    // Save negatives silently
+                    chrome.storage.local.set({ negativeKeywords: d.negativeKeywords });
+                    // Flash success
+                    els.btnScrape.style.background = '#dcfce7';
+                    setTimeout(() => els.btnScrape.style.background = '', 1000);
+                } else {
+                    alert("Scrape failed. Please check console.");
+                }
+            });
+        } catch (e) {
+            console.error("Injection Error:", e);
+            els.btnScrape.textContent = "❌";
+            alert("Script injection failed: " + e.message);
+        }
     });
 
     // B. Start Job
     els.btnStart.addEventListener('click', async () => {
         if (!els.title.value) { alert("Please enter a Title."); return; }
+
+        // Check active job
+        const currentStorage = await chrome.storage.local.get('activeJob');
+        if (currentStorage.activeJob && currentStorage.activeJob.status === 'running') {
+             if(!confirm("A job is currently running! Starting a new one will overwrite it. Continue?")) return;
+        }
 
         const settings = {
             pageCount: parseInt(els.pages.value),

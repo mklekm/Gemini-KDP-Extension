@@ -20,21 +20,35 @@
 
     function scrape() {
         // 1. Metadata Extraction
-        const title = document.getElementById('productTitle')?.innerText.trim() || document.title;
+        const title = document.getElementById('productTitle')?.innerText.trim() ||
+                      document.getElementById('ebooksProductTitle')?.innerText.trim() ||
+                      document.getElementById('title')?.innerText.trim() ||
+                      document.querySelector('h1')?.innerText.trim() ||
+                      document.title;
 
         let desc = "";
         const descSelectors = [
             '#bookDescription_feature_div .a-expander-content',
             'div[data-feature-name="bookDescription"]',
             '#editorialReviews_feature_div',
-            'meta[name="description"]'
+            'meta[name="description"]',
+            '.a-expander-content' // Generic fallback
         ];
 
         for (const sel of descSelectors) {
             const el = document.querySelector(sel);
-            if (el && el.innerText.trim().length > 20) {
-                desc = el.innerText.trim();
-                break;
+            if (el) {
+                const txt = el.innerText.trim();
+                // Ensure it's substantial content
+                if (txt.length > 20 && !txt.includes("Read more")) {
+                    desc = txt;
+                    break;
+                }
+                // If it's a meta tag
+                if (el.tagName === 'META' && el.content && el.content.length > 20) {
+                    desc = el.content;
+                    break;
+                }
             }
         }
 
@@ -45,10 +59,11 @@
         const imgEl = document.querySelector('#imgBlkFront') ||
             document.querySelector('#ebooksImgBlkFront') ||
             document.querySelector('#main-image') ||
-            document.querySelector('#landingImage');
+            document.querySelector('#landingImage') ||
+            document.querySelector('.frontImage'); // Generic
 
         if (imgEl) {
-            console.log("Found Main Image Element:", imgEl.id);
+            console.log("Found Main Image Element:", imgEl.id || imgEl.className);
 
             // Priority 1: JSON Dynamic Data (Best Quality)
             try {
@@ -90,7 +105,7 @@
             const candidates = allImgs.filter(i => {
                 return i.naturalHeight > 500 &&
                     i.naturalHeight > i.naturalWidth &&
-                    i.src.includes('images-na.ssl-images-amazon.com');
+                    (i.src.includes('images-na.ssl-images-amazon.com') || i.src.includes('m.media-amazon.com'));
             });
 
             if (candidates.length) {
