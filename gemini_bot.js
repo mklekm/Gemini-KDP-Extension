@@ -1,4 +1,4 @@
-// gemini_bot.js - V14.5 Ultimate Studio (Delimiter Strategy)
+// gemini_bot.js - V14.6 Ultimate Studio (Delimiter Strategy + Enhanced Feedback)
 (async () => {
     // --- 0. SAFETY & INIT ---
     const allowed = await new Promise(r => chrome.runtime.sendMessage({ action: 'VERIFY_TAB' }, resp => r(resp?.allowed)));
@@ -9,7 +9,7 @@
 
     if (window.gBotRunning) return;
     window.gBotRunning = true;
-    console.log("Gemini KDP Bot V14.5: Started (Delimiter Mode)");
+    console.log("Gemini KDP Bot V14.6: Started (Delimiter Mode)");
 
     // --- GLOBALS ---
     let isStopped = false;
@@ -62,9 +62,14 @@
     if (storage.repairTask) {
         await executeRepairMode(storage.repairTask, storage.projectLibrary || []);
     } else if (storage.activeJob && storage.activeJob.status !== 'paused') {
+        console.log("Job Found:", storage.activeJob.title);
         await executeProductionMode(storage.activeJob);
     } else {
         console.log("No active job or repair task found.");
+        // Optional: Show temporary overlay to inform user
+        overlayUI = createOverlay("GEMINI KDP STUDIO", "#94a3b8");
+        updateUI(0, "Idle. Start a job from the extension.");
+        setTimeout(() => { if (overlayUI) overlayUI.remove(); window.gBotRunning = false; }, 3000);
     }
 
     // ==========================================
@@ -276,9 +281,12 @@
     }
 
     async function sendPrompt(t) {
-        const d = await waitForEl('div[contenteditable="true"], textarea');
+        // Expanded selectors for input box
+        const d = await waitForEl('div[contenteditable="true"], [role="textbox"], textarea');
         if (!d) { console.error("Input box not found!"); return; }
         d.focus();
+
+        console.log("Sending Prompt:", t.slice(0, 30) + "...");
 
         let success = document.execCommand('insertText', false, t);
         if (!success) {
@@ -327,7 +335,8 @@
         return new Promise(r => {
             let k = 0;
             const i = setInterval(() => {
-                if (document.querySelector(s)) { clearInterval(i); r(document.querySelector(s)); }
+                const el = document.querySelector(s);
+                if (el) { clearInterval(i); r(el); }
                 k++; if (k > 20) { clearInterval(i); r(null); }
             }, 500);
         });
@@ -346,11 +355,9 @@
     // --- SMART SELECTOR & PARSER (V14.5 Delimiter Edition) ---
     function getLastBotMessage() {
         // Strategy A: Delimiter Search (Full Body Scan - Ultimate Fallback)
-        // If we can find the delimiter anywhere in the text, we win.
         if (document.body.innerText.includes('<<<JSON>>>')) {
             const matches = document.body.innerText.match(/<<<JSON>>>([\s\S]*?)<<<JSON>>>/g);
             if (matches && matches.length > 0) {
-                // Return the last match found in the entire document
                 return matches[matches.length - 1];
             }
         }
