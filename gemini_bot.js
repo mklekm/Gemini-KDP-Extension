@@ -1,4 +1,4 @@
-// gemini_bot.js - V14.6 Ultimate Studio (Delimiter Strategy + Enhanced Feedback)
+// gemini_bot.js - V15.0 Ultimate Studio (Production Grade)
 (async () => {
     // --- 0. SAFETY & INIT ---
     const allowed = await new Promise(r => chrome.runtime.sendMessage({ action: 'VERIFY_TAB' }, resp => r(resp?.allowed)));
@@ -9,7 +9,7 @@
 
     if (window.gBotRunning) return;
     window.gBotRunning = true;
-    console.log("Gemini KDP Bot V14.6: Started (Delimiter Mode)");
+    console.log("Gemini KDP Bot V15.0: Started (Production Mode)");
 
     // --- GLOBALS ---
     let isStopped = false;
@@ -66,10 +66,9 @@
         await executeProductionMode(storage.activeJob);
     } else {
         console.log("No active job or repair task found.");
-        // Optional: Show temporary overlay to inform user
         overlayUI = createOverlay("GEMINI KDP STUDIO", "#94a3b8");
         updateUI(0, "Idle. Start a job from the extension.");
-        setTimeout(() => { if (overlayUI) overlayUI.remove(); window.gBotRunning = false; }, 3000);
+        setTimeout(() => { if (overlayUI) overlayUI.remove(); window.gBotRunning = false; }, 5000);
     }
 
     // ==========================================
@@ -110,7 +109,7 @@
     // LOGIC: PRODUCTION MODE
     // ==========================================
     async function executeProductionMode(job) {
-        overlayUI = createOverlay("KDP STUDIO V14");
+        overlayUI = createOverlay("KDP STUDIO V15");
         const total = job.settings.pageCount || 10;
         let images = job.images || [];
         let texts = job.storyTexts || [];
@@ -252,7 +251,7 @@
     }
 
     async function waitForTextOnly() {
-        // --- V14.4 FIX: STARTUP BUFFER ---
+        // --- V15.0 FIX: STARTUP BUFFER ---
         await delay(3000);
 
         await new Promise(r => {
@@ -264,15 +263,23 @@
         });
     }
 
+    // --- STRICT IMAGE WATCHER (CRITICAL) ---
     async function waitForNewImage(initialCount) {
         return new Promise(resolve => {
             let attempts = 0;
             const i = setInterval(() => {
                 const currentCount = countValidImages();
                 if (currentCount > initialCount) {
-                    const allImgs = document.querySelectorAll('img');
-                    const img = allImgs[allImgs.length - 1];
-                    if (img.complete && img.naturalWidth > 200) { clearInterval(i); resolve(img); }
+                    const allImgs = Array.from(document.querySelectorAll('img'))
+                        .filter(i => i.naturalWidth > 200 && (i.src.startsWith('https://') || i.src.startsWith('data:') || i.src.startsWith('blob:')));
+
+                    const img = allImgs[allImgs.length - 1]; // Get the last valid image added
+
+                    // Strict Validation
+                    if (img && img.complete && img.naturalWidth > 0) {
+                        clearInterval(i);
+                        resolve(img);
+                    }
                 }
                 attempts++;
                 if (attempts > 90) { clearInterval(i); resolve(null); }
@@ -343,8 +350,7 @@
     }
 
     function constructPrompt(j, a) {
-        // --- DELIMITER STRATEGY (V14.5) ---
-        // Forces the model to wrap JSON in unique tags, making extraction trivial and robust against UI changes.
+        // --- DELIMITER STRATEGY (V15.0) ---
         return `Role: Professional Illustrator. Task: Plan ${j.settings.pageCount} generic scene descriptions for a "${j.title}" book. Plot: ${j.description}.
         OUTPUT FORMAT: STRICT JSON Array wrapped in <<<JSON>>> delimiters.
         Example: <<<JSON>>>[{"page":1,"image_prompt":"...","story_text":"..."}]<<<JSON>>>.
@@ -352,7 +358,7 @@
         Format: ${a}. Negative Keywords: ${j.negativeKeywords}.`;
     }
 
-    // --- SMART SELECTOR & PARSER (V14.5 Delimiter Edition) ---
+    // --- SMART SELECTOR & PARSER (V15.0) ---
     function getLastBotMessage() {
         // Strategy A: Delimiter Search (Full Body Scan - Ultimate Fallback)
         if (document.body.innerText.includes('<<<JSON>>>')) {

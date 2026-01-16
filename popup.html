@@ -3,13 +3,13 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>Gemini KDP Studio</title>
+  <title>Gemini KDP Ultimate Studio</title>
   <style>
-    /* BASE DESIGN SYSTEM */
+    /* BASE DESIGN SYSTEM (Inter Font + Modern Gradient) */
     :root {
-      --primary: #4f46e5;
-      --primary-light: #818cf8;
-      --secondary: #9333ea;
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --secondary: #a855f7;
       --bg: #f8fafc;
       --surface: #ffffff;
       --text-main: #1e293b;
@@ -17,6 +17,7 @@
       --border: #e2e8f0;
       --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
       --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+      --radius: 8px;
     }
 
     body {
@@ -95,7 +96,7 @@
 
     .card {
       background: var(--surface);
-      border-radius: 12px;
+      border-radius: var(--radius);
       padding: 16px;
       box-shadow: var(--shadow-sm);
       margin-bottom: 12px;
@@ -125,7 +126,7 @@
       box-sizing: border-box;
       padding: 10px;
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: var(--radius);
       font-size: 13px;
       font-family: inherit;
       color: var(--text-main);
@@ -138,7 +139,7 @@
     textarea:focus {
       outline: none;
       border-color: var(--primary);
-      ring: 2px solid var(--primary-light);
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
     }
 
     /* LIBRARY GRID */
@@ -150,7 +151,7 @@
 
     .lib-item {
       background: white;
-      border-radius: 8px;
+      border-radius: var(--radius);
       overflow: hidden;
       cursor: pointer;
       border: 1px solid var(--border);
@@ -168,7 +169,7 @@
       width: 100%;
       height: 130px;
       object-fit: cover;
-      background: #cbd5e1;
+      background: #e2e8f0;
     }
 
     .lib-info {
@@ -196,7 +197,7 @@
       margin-bottom: 12px;
       background: #f8fafc;
       padding: 10px;
-      border-radius: 8px;
+      border-radius: var(--radius);
       border: 1px solid var(--border);
     }
 
@@ -274,7 +275,7 @@
       flex: 1;
       padding: 12px;
       border: none;
-      border-radius: 8px;
+      border-radius: var(--radius);
       font-weight: 700;
       cursor: pointer;
       color: white;
@@ -299,10 +300,13 @@
     .btn-icon {
       background: #f1f5f9;
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: var(--radius);
       cursor: pointer;
       padding: 0 12px;
       height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .btn-icon:hover {
@@ -313,7 +317,7 @@
     .alert-resume {
       background: #fefce8;
       border: 1px solid #fde047;
-      border-radius: 8px;
+      border-radius: var(--radius);
       padding: 12px;
       margin-bottom: 16px;
       animation: slideDown 0.3s ease;
@@ -373,7 +377,7 @@
 
   <div class="header">
     <h1>Gemini KDP Studio</h1>
-    <p>Pro Automation Suite • V14</p>
+    <p>Pro Automation Suite • V15</p>
   </div>
 
   <div class="tabs">
@@ -404,6 +408,9 @@
 
         <label>Book Title</label>
         <input type="text" id="book-title" placeholder="Enter Title">
+
+        <label>Author / Style Ref</label>
+        <input type="text" id="book-author" placeholder="e.g. Disney Pixar, Watercolor...">
 
         <label>Concept / Plot</label>
         <textarea id="story-plot" rows="4" placeholder="Briefly describe the story or theme..."></textarea>
@@ -444,6 +451,7 @@
           <option value="Line Art">Coloring Book (B&W)</option>
           <option value="Anime">Anime / Manga</option>
           <option value="Realistic">Photorealistic</option>
+          <option value="Cyberpunk">Cyberpunk / Sci-Fi</option>
         </select>
 
         <div style="margin-top:12px; display:flex; align-items:center; gap:8px;">

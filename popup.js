@@ -1,4 +1,4 @@
-// popup.js - V14.1 Ultimate Studio Controller
+// popup.js - V15.0 Ultimate Studio Controller
 document.addEventListener('DOMContentLoaded', async () => {
 
     // --- UI REFERENCES ---
@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Inputs
         url: document.getElementById('amazon-url'),
         title: document.getElementById('book-title'),
+        author: document.getElementById('book-author'),
         plot: document.getElementById('story-plot'),
         pages: document.getElementById('page-count'),
         style: document.getElementById('art-style'),
@@ -32,7 +33,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         projectView: document.getElementById('project-view'),
         projPages: document.getElementById('proj-pages'),
         projTitle: document.getElementById('proj-title'),
-        btnBackLib: document.getElementById('btn-back-lib')
+        btnBackLib: document.getElementById('btn-back-lib'),
+        btnExportPdf: document.getElementById('btn-export-pdf')
     };
 
     // --- 1. INITIALIZATION & RESUME LOGIC ---
@@ -99,11 +101,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         els.projPages.innerHTML = '';
 
         // Wire Export Button
-        const btnExport = document.getElementById('btn-export-pdf');
         // Remove old listeners by cloning
-        const newBtn = btnExport.cloneNode(true);
-        btnExport.parentNode.replaceChild(newBtn, btnExport);
-        newBtn.addEventListener('click', () => exportProjectToPDF(proj));
+        const newBtn = els.btnExportPdf.cloneNode(true);
+        els.btnExportPdf.parentNode.replaceChild(newBtn, els.btnExportPdf);
+        // Re-assign to global var
+        els.btnExportPdf = newBtn;
+        els.btnExportPdf.addEventListener('click', () => exportProjectToPDF(proj));
 
         // Helper to render row
         const renderRow = (label, img, text, index) => {
@@ -205,6 +208,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (proj.coverImage) {
                 doc.addImage(proj.coverImage, 'JPEG', 0, 0, width, height);
             } else {
+                doc.setFontSize(24);
                 doc.text(proj.title, width / 2, height / 3, { align: 'center' });
             }
 
@@ -292,6 +296,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const job = {
             id: Date.now(),
             title: els.title.value,
+            author: els.author.value || "Anonymous",
             description: els.plot.value,
             settings: settings,
             status: 'running',

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Gemini KDP Ultimate Studio",
-  "version": "12.0",
-  "description": "The Ultimate KDP Automation Studio. Scrape, Create, Edit, Archive.",
+  "version": "15.0",
+  "description": "The Ultimate KDP Automation Studio. Scrape, Create, Edit, Archive. Production Grade.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -12,7 +12,13 @@
   ],
   "host_permissions": [
     "*://www.amazon.com/*",
+    "*://www.amazon.co.uk/*",
+    "*://www.amazon.de/*",
     "*://www.amazon.fr/*",
+    "*://www.amazon.es/*",
+    "*://www.amazon.it/*",
+    "*://www.amazon.ca/*",
+    "*://www.amazon.com.au/*",
     "*://gemini.google.com/*",
     "*://*.googleusercontent.com/*"
   ],

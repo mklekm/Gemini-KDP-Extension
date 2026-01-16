@@ -1,4 +1,4 @@
-// background.js - V12 Service Worker (Strict Locking & Image Proxy)
+// background.js - V15.0 Service Worker (Strict Locking & Image Proxy)
 
 // Helper to access session storage (falls back to local if session undefined)
 const getStorage = async (keys) => {
@@ -18,7 +18,7 @@ const setStorage = async (items) => {
 };
 
 chrome.runtime.onInstalled.addListener(async () => {
-    console.log("Gemini KDP Studio V12 Installed");
+    console.log("Gemini KDP Studio V15 Installed");
     // Clear lock on install/update/reload
     await setStorage({ currentJobTabId: null });
 });

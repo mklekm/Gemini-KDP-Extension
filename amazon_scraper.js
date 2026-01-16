@@ -1,4 +1,4 @@
-// amazon_scraper.js - V12 Nuclear Edition (HD Cover Extraction)
+// amazon_scraper.js - V15.0 Nuclear Edition (HD Cover Extraction)
 (() => {
     // Prevent double injection
     if (window.geminiScraper) return;
@@ -32,13 +32,14 @@
             'div[data-feature-name="bookDescription"]',
             '#editorialReviews_feature_div',
             'meta[name="description"]',
-            '.a-expander-content' // Generic fallback
+            '.a-expander-content', // Generic fallback
+            '#description'
         ];
 
         for (const sel of descSelectors) {
             const el = document.querySelector(sel);
             if (el) {
-                const txt = el.innerText.trim();
+                const txt = el.innerText ? el.innerText.trim() : "";
                 // Ensure it's substantial content
                 if (txt.length > 20 && !txt.includes("Read more")) {
                     desc = txt;
@@ -103,6 +104,7 @@
             const allImgs = Array.from(document.querySelectorAll('img'));
             // Find largest vertical image (likely the cover)
             const candidates = allImgs.filter(i => {
+                // Must be reasonably large and vertical
                 return i.naturalHeight > 500 &&
                     i.naturalHeight > i.naturalWidth &&
                     (i.src.includes('images-na.ssl-images-amazon.com') || i.src.includes('m.media-amazon.com'));
@@ -120,7 +122,24 @@
         }
 
         // 3. Review Analysis (Negative Keywords)
-        const negKeywords = "blurry, low quality, pixelated, distorted, bad anatomy, text, watermark, logo, grainy, low resolution";
+        let negKeywords = "blurry, low quality, pixelated, distorted, bad anatomy, text, watermark, logo, grainy, low resolution";
+
+        // Scan 1-star and 2-star reviews if available on page
+        const criticalReviews = document.querySelectorAll('.critical-review-text, .a-star-1, .a-star-2');
+        const badTerms = ["dark", "faded", "small", "thin", "repetitive", "boring", "offensive", "cut off", "margins"];
+        const foundTerms = new Set();
+
+        criticalReviews.forEach(el => {
+            const txt = el.innerText.toLowerCase();
+            badTerms.forEach(term => {
+                if (txt.includes(term)) foundTerms.add(term);
+            });
+        });
+
+        if (foundTerms.size > 0) {
+            negKeywords += ", " + Array.from(foundTerms).join(", ");
+            console.log("Added dynamic negative keywords:", foundTerms);
+        }
 
         return {
             title,
