@@ -1,4 +1,4 @@
-// gemini_bot.js - V14.4 Ultimate Studio (Startup Buffer + Smart Logic)
+// gemini_bot.js - V14.5 Ultimate Studio (Delimiter Strategy)
 (async () => {
     // --- 0. SAFETY & INIT ---
     const allowed = await new Promise(r => chrome.runtime.sendMessage({ action: 'VERIFY_TAB' }, resp => r(resp?.allowed)));
@@ -9,7 +9,7 @@
 
     if (window.gBotRunning) return;
     window.gBotRunning = true;
-    console.log("Gemini KDP Bot V14.4: Started (Buffer Enabled)");
+    console.log("Gemini KDP Bot V14.5: Started (Delimiter Mode)");
 
     // --- GLOBALS ---
     let isStopped = false;
@@ -126,14 +126,14 @@
                     await sendPrompt(initialPrompt);
                 } else {
                     updateUI(5, `Retrying Plan (${planAttempts}/3)...`);
-                    await sendPrompt("The previous output was not valid JSON. Please output ONLY the raw JSON array. Start with [ and end with ]. Do not use markdown blocks.");
+                    await sendPrompt("The previous output was not valid JSON. Please output ONLY the raw JSON array wrapped in <<<JSON>>> delimiters.");
                 }
 
                 await waitForTextOnly();
                 await delay(2000);
 
                 const lastMsg = getLastBotMessage();
-                console.log(`Parsing Plan Candidate (${planAttempts}):`, lastMsg.slice(0, 100) + "...");
+                console.log(`Parsing Plan Candidate (${planAttempts}):`, lastMsg ? lastMsg.slice(0, 50) + "..." : "EMPTY");
                 sceneData = parseJSON(lastMsg);
 
                 if (sceneData && Array.isArray(sceneData) && sceneData.length > 0) {
@@ -142,7 +142,7 @@
                     await chrome.storage.local.set({ activeJob: job });
                     updateUI(10, "Plan Secured.");
                 } else {
-                    console.warn(`Plan Parse Attempt ${planAttempts} Failed. Got:`, lastMsg.slice(0, 50));
+                    console.warn(`Plan Parse Attempt ${planAttempts} Failed.`);
                     planAttempts++;
                 }
             }
@@ -248,13 +248,10 @@
 
     async function waitForTextOnly() {
         // --- V14.4 FIX: STARTUP BUFFER ---
-        // Give Gemini 3 seconds to initiate the "Stop" button state.
-        // Prevents premature completion detection.
         await delay(3000);
 
         await new Promise(r => {
             const i = setInterval(() => {
-                // Expanded selectors for robustness
                 const stopBtn = document.querySelector('button[aria-label*="Stop"], button[data-test-id*="stop-generating"]');
                 const progress = document.querySelector('.mat-mdc-progress-bar, [role="progressbar"]');
                 if (!stopBtn && !progress) { clearInterval(i); r(); }
@@ -283,23 +280,16 @@
         if (!d) { console.error("Input box not found!"); return; }
         d.focus();
 
-        // Try deprecated but reliable execCommand
         let success = document.execCommand('insertText', false, t);
-
-        // Fallback for modern apps
         if (!success) {
              const inputEvent = new Event('input', { bubbles: true, composed: true });
-             if (d.tagName === 'TEXTAREA') {
-                 d.value = t;
-             } else {
-                 d.innerText = t;
-             }
+             if (d.tagName === 'TEXTAREA') d.value = t;
+             else d.innerText = t;
              d.dispatchEvent(inputEvent);
         }
 
         d.dispatchEvent(new Event('input', { bubbles: true }));
         await delay(1500);
-        // Improved selector for send button
         const b = document.querySelector('button[aria-label*="Send"], button[class*="send-button"]');
         if (b) b.click();
         else d.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
@@ -344,65 +334,67 @@
     }
 
     function constructPrompt(j, a) {
+        // --- DELIMITER STRATEGY (V14.5) ---
+        // Forces the model to wrap JSON in unique tags, making extraction trivial and robust against UI changes.
         return `Role: Professional Illustrator. Task: Plan ${j.settings.pageCount} generic scene descriptions for a "${j.title}" book. Plot: ${j.description}.
-        OUTPUT FORMAT: STRICT JSON Array. Example: [{"page":1,"image_prompt":"...","story_text":"..."}].
+        OUTPUT FORMAT: STRICT JSON Array wrapped in <<<JSON>>> delimiters.
+        Example: <<<JSON>>>[{"page":1,"image_prompt":"...","story_text":"..."}]<<<JSON>>>.
         Style Constraint: ${j.settings.bookType.includes('coloring') ? 'Black and white line art only, simple, no shading' : 'Full color, 3D render'}.
         Format: ${a}. Negative Keywords: ${j.negativeKeywords}.`;
     }
 
-    // --- SMART SELECTOR & PARSER (V14.3) ---
+    // --- SMART SELECTOR & PARSER (V14.5 Delimiter Edition) ---
     function getLastBotMessage() {
-        // Strategy 1: Targeted Containers only
-        const responses = document.querySelectorAll('.model-response-text, .markdown, .message-content');
-        if (responses.length > 0) {
-            // Find last Valid response (ignoring prompts & disclaimers)
-            for (let i = responses.length - 1; i >= 0; i--) {
-                const txt = responses[i].innerText || "";
-                if (isValidResponse(txt)) return txt;
+        // Strategy A: Delimiter Search (Full Body Scan - Ultimate Fallback)
+        // If we can find the delimiter anywhere in the text, we win.
+        if (document.body.innerText.includes('<<<JSON>>>')) {
+            const matches = document.body.innerText.match(/<<<JSON>>>([\s\S]*?)<<<JSON>>>/g);
+            if (matches && matches.length > 0) {
+                // Return the last match found in the entire document
+                return matches[matches.length - 1];
             }
         }
 
-        // Strategy 2: Broad Scan Fallback (Restricted)
-        const allElements = document.querySelectorAll('*');
-        for (let i = allElements.length - 1; i >= 0; i--) {
-            const el = allElements[i];
-            const txt = el.innerText || "";
-            if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') continue;
+        // Strategy B: Standard Selector Search (Backwards)
+        const selectors = [
+            '.model-response-text',
+            '.markdown',
+            '.message-content',
+            '[data-test-id="model-response-message"]',
+            '[data-message-author-role="assistant"]'
+        ];
 
-            // Heuristic for JSON block
-            if (txt.includes('[') && txt.includes('"page":') && txt.length < 50000 && isValidResponse(txt)) {
-                return txt;
+        for (const sel of selectors) {
+            const els = document.querySelectorAll(sel);
+            if (els.length > 0) {
+                for (let i = els.length - 1; i >= 0; i--) {
+                    const txt = els[i].innerText;
+                    if (txt && txt.length > 20 && !txt.includes("Role: Professional Illustrator")) {
+                        return txt;
+                    }
+                }
             }
         }
+
         return "";
-    }
-
-    function isValidResponse(txt) {
-        if (!txt) return false;
-        // Ignore User Prompts
-        if (txt.includes("Role: Professional Illustrator") || txt.includes("OUTPUT FORMAT: STRICT JSON")) return false;
-        // Ignore Disclaimers
-        if (txt.includes("Gemini can make mistakes") || txt.includes("Google collects data")) return false;
-        return true;
     }
 
     function parseJSON(s) {
         if (!s) return null;
 
-        // Attempt 1: Extract JSON from code blocks (improved)
+        // 1. Delimiter Extraction (Highest Priority)
+        const delimMatch = s.match(/<<<JSON>>>([\s\S]*?)<<<JSON>>>/);
+        if (delimMatch && delimMatch[1]) {
+            try { return JSON.parse(delimMatch[1]); } catch(e) { console.warn("Delimiter JSON parse failed"); }
+        }
+
+        // 2. Code Block Extraction
         const codeBlockMatch = s.match(/```(?:json)?\s*(\[\s*\{[\s\S]*?\}\s*\])\s*```/i);
         if (codeBlockMatch && codeBlockMatch[1]) {
              try { return JSON.parse(codeBlockMatch[1]); } catch(e) {}
         }
 
-        // Attempt 2: Classic regex (cleaning)
-        let clean = s.replace(/```json/gi, '').replace(/```/g, '').trim();
-        const match = clean.match(/\[\s*\{[\s\S]*?\}\s*\]/);
-        if (match) {
-            try { return JSON.parse(match[0]); } catch (e) { console.warn("Regex JSON parse failed"); }
-        }
-
-        // Attempt 3: Substring hunting
+        // 3. Raw Search
         const start = s.indexOf('[');
         const end = s.lastIndexOf(']') + 1;
         if (start !== -1 && end > start) {
