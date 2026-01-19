@@ -1,0 +1,62 @@
+{
+  "manifest_version": 3,
+  "name": "Gemini KDP Ultimate Studio",
+  "version": "15.0",
+  "description": "The Ultimate KDP Automation Studio. Scrape, Create, Edit, Archive. Production Grade.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "unlimitedStorage",
+    "downloads"
+  ],
+  "host_permissions": [
+    "*://www.amazon.com/*",
+    "*://www.amazon.co.uk/*",
+    "*://www.amazon.de/*",
+    "*://www.amazon.fr/*",
+    "*://www.amazon.es/*",
+    "*://www.amazon.it/*",
+    "*://www.amazon.ca/*",
+    "*://www.amazon.com.au/*",
+    "*://gemini.google.com/*",
+    "*://*.googleusercontent.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://gemini.google.com/*"
+      ],
+      "js": [
+        "gemini_bot.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "libs/jspdf.umd.min.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}
